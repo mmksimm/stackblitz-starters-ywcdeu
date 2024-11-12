@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        html, body {
+            overflow: hidden;
+            user-select: none;
+            touch-action: none;
+            overscroll-behavior: none;
+            background-color: var(--tg-theme-bg-color, #121220);
+            color: var(--tg-theme-text-color, white);
+        }
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Arial', sans-serif;
+            flex-direction: column;
+            margin: 0;
+            padding: 0;
+        }
+        .platinum-disk {
+            width: 600px;
+            height: 600px;
+            background: linear-gradient(145deg, var(--tg-theme-secondary-bg-color, #c0c0c0), var(--tg-theme-bg-color, #e0e0e0));
+            border-radius: 50%;
+            box-shadow: -15px -15px 30px rgba(0,0,0,0.2), 15px 15px 30px rgba(255,255,255,0.1);
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            touch-action: none;
+            cursor: pointer;
+            transition: transform 0.05s linear;
+            animation: spin 10s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .record-label {
+            position: absolute;
+            width: 97%;
+            height: 97%;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2;
+            background: repeating-radial-gradient(
+                circle at 50% 50%,
+                rgba(0,0,0,0.2) 0px,
+                rgba(0,0,0,0.2) 2px,
+                transparent 2px,
+                transparent 4px
+            );
+        }
+        .record-label img {
+            width: 40%;
+            height: 40%;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .center-hole {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            background: #000;
+            border-radius: 50%;
+            z-index: 3;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        .artist-info {
+            text-align: center;
+            max-width: 600px;
+            padding: 25px;
+            background-color: var(--tg-theme-secondary-bg-color, rgba(255,255,255,0.05));
+            border-radius: 15px;
+            border: 1px solid var(--tg-theme-hint-color, rgba(255,255,255,0.1));
+        }
+        .artist-info h1 {
+            margin-bottom: 10px;
+            font-size: 24px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            color: var(--tg-theme-text-color, white);
+        }
+        .artist-info p {
+            margin: 0;
+            font-size: 16px;
+            color: var(--tg-theme-hint-color, rgba(255,255,255,0.7));
+        }
+        @media (max-width: 600px) {
+            .platinum-disk {
+                width: 90vw;
+                height: 90vw;
+            }
+        }
+        .paused {
+            animation-play-state: paused;
+        }
+    </style>
+</head>
+<body>
+    <div class="platinum-disk" id="platinumDisk">
+        <div class="record-label">
+            <img src="Изображение HEIF.heic" alt="Prestol Records Logo">
+        </div>
+        <div class="center-hole"></div>
+    </div>
+    <div class="artist-info">
+        <h1>Prestol Records</h1>
+        <p>Interactive Vinyl Experience</p>
+    </div>
+    
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        // Audio setup
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        let audioBuffer;
+        let audioSource;
+        let isPlaying = false;
+
+        // Загрузка музыки
+        function loadMusic() {
+            fetch('Maxkai-F  -  НА ХУЯХ СИЖУ(bd record).mp3')  // Укажите путь к вашему аудиофайлу
+                .then(response => response.arrayBuffer())
+                .then(arrayBuffer => audioContext.decodeAudioData(arrayBuffer))
+                .then(buffer => {
+                    audioBuffer = buffer;
+                })
+                .catch(error => console.error('Ошибка загрузки аудио:', error));
+        }
+
+        loadMusic();
+
+        function playMusic() {
+            if (audioSource) {
+                audioSource.stop();
+            }
+            
+            audioSource = audioContext.createBufferSource();
+            audioSource.buffer = audioBuffer;
+            audioSource.loop = true;
+            
+            // Add effects chain
+            const filter = audioContext.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 1000;
+            
+            audioSource.connect(filter);
+            filter.connect(audioContext.destination);
+            
+            audioSource.start(0);
+            isPlaying = true;
+            platinumDisk.classList.remove('paused');
+        }
+
+        function stopMusic() {
+            if (audioSource) {
+                audioSource.stop();
+                isPlaying = false;
+                platinumDisk.classList.add('paused');
+            }
+        }
+
+        // Telegram WebApp setup
+        tg.MainButton.setText('Play');
+        tg.MainButton.onClick(() => {
+            if (!isPlaying) {
+                playMusic();
+                tg.MainButton.setText('Stop');
+            } else {
+                stopMusic();
+                tg.MainButton.setText('Play');
+            }
+            tg.HapticFeedback.notificationOccurred('success');
+        });
+        tg.MainButton.show();
+
+        // Scratch functionality
+        const platinumDisk = document.getElementById('platinumDisk');
+        let isScratchMode = false;
+        let previousAngle = 0;
+        let scratchFilter;
+
+        function setupScratchEffect() {
+            scratchFilter = audioContext.createBiquadFilter();
+            scratchFilter.type = 'bandpass';
+            scratchFilter.frequency.value = 1000;
+            scratchFilter.Q.value = 10;
+        }
+
+        setupScratchEffect();
+
+        platinumDisk.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = platinumDisk.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            
+            previousAngle = Math.atan2(touch.clientY - centerY, touch.clientX - centerX);
+            isScratchMode = true;
+            
+            if (audioSource) {
+                audioSource.playbackRate.value = 0;
+                scratchFilter.frequency.value = 2000;
+            }
+            
+            tg.HapticFeedback.impactOccurred('medium');
+            platinumDisk.classList.add('paused');
+        }, { passive: false });
+
+        document.addEventListener('touchmove', (e) => {
+            if (!isScratchMode) return;
+            e.preventDefault();
+            
+            const touch = e.touches[0];
+            const rect = platinumDisk.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            
+            const currentAngle = Math.atan2(touch.clientY - centerY, touch.clientX - centerX);
+            let angleDelta = currentAngle - previousAngle;
+            
+            if (angleDelta > Math.PI) angleDelta -= Math.PI * 2;
+            if (angleDelta < -Math.PI) angleDelta += Math.PI * 2;
+            
+            if (audioSource) {
+                audioSource.playbackRate.value = angleDelta * 10;
+                scratchFilter.frequency.value = 1000 + Math.abs(angleDelta) * 2000;
+            }
+            
+            platinumDisk.style.transform = `rotate(${currentAngle * 180 / Math.PI}deg)`;
+            previousAngle = currentAngle;
+            
+            if (Math.abs(angleDelta) > 0.1) {
+                tg.HapticFeedback.impactOccurred('light');
+            }
+        }, { passive: false });
+
+        document.addEventListener('touchend', () => {
+            isScratchMode = false;
+            if (audioSource && isPlaying) {
+                audioSource.playbackRate.value = 1;
+                scratchFilter.frequency.value = 1000;
+            }
+            platinumDisk.style.transform = '';
+            platinumDisk.classList.remove('paused');
+            tg.HapticFeedback.notificationOccurred('success');
+        });
+
+        // Theme and viewport handling
+        tg.onEvent('themeChanged', () => {
+            document.body.style.backgroundColor = tg.backgroundColor;
+            document.body.style.color = tg.color;
+        });
+
+        tg.onEvent('viewportChanged', () => {
+            const width = Math.min(window.innerWidth * 0.9, 600);
+            platinumDisk.style.width = `${width}px`;
+            platinumDisk.style.height = `${width}px`;
+        });
+    </script>
+</body>
+</html>
